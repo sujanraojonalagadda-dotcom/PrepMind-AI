@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "UserProgress": {
+      "title": "User Progress",
+      "description": "Stores user's exam progress, scores, and mastery history.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User's unique identifier." },
+        "examName": { "type": "string", "description": "The name of the exam." },
+        "score": {
+          "type": "object",
+          "properties": {
+            "correct": { "type": "integer" },
+            "total": { "type": "integer" }
+          }
+        },
+        "topicScores": { "type": "object", "description": "Map of topic names to scores." },
+        "masteryHistory": { "type": "object", "description": "Map of topic names to history points." },
+        "personalizedPlan": { "type": "string", "description": "AI-generated personalized study plan." },
+        "overview": { "type": "object", "description": "The exam overview details (pattern, strategy, etc.)" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "examName", "score", "updatedAt"]
+    },
+    "Flashcard": {
+      "title": "Flashcard",
+      "description": "A study flashcard with a front (term) and back (definition/concept).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "front": { "type": "string" },
+        "back": { "type": "string" },
+        "topic": { "type": "string" },
+        "mastery": { "type": "integer", "description": "0-5 scale of how well the user knows this card." },
+        "lastReviewed": { "type": "string", "format": "date-time" }
+      },
+      "required": ["front", "back", "topic"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/progress/{examName}": {
+      "schema": "UserProgress",
+      "description": "User's progress for a specific exam."
+    },
+    "/users/{userId}/flashcards/{cardId}": {
+      "schema": "Flashcard",
+      "description": "User's personal flashcards."
+    }
+  }
+}

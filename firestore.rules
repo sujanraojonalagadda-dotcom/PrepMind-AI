@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}/progress/{examName}
+    // Document ID: {examName}
+    // Fields:
+    //   - uid: string (required, immutable) - User's unique identifier
+    //   - examName: string (required, immutable) - The name of the exam
+    //   - score: map (required) - { correct: number, total: number }
+    //   - topicScores: map (optional) - Map of topic names to scores
+    //   - masteryHistory: map (optional) - Map of topic names to history points
+    //   - updatedAt: timestamp (required) - Last update time
+    //
+    // Collection: /users/{userId}/flashcards/{cardId}
+    // Fields:
+    //   - front: string (required)
+    //   - back: string (required)
+    //   - topic: string (required)
+    //   - mastery: number (optional, 0-5)
+    //   - lastReviewed: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidScore(score) {
+      return score is map &&
+             score.keys().hasAll(['correct', 'total']) &&
+             score.correct is number && score.correct >= 0 &&
+             score.total is number && score.total >= 0 &&
+             score.correct <= score.total;
+    }
+
+    function isValidProgress(data) {
+      return hasRequiredFields(['uid', 'examName', 'score', 'updatedAt']) &&
+             hasOnlyAllowedFields(['uid', 'examName', 'score', 'topicScores', 'masteryHistory', 'personalizedPlan', 'overview', 'updatedAt']) &&
+             data.uid == request.auth.uid &&
+             data.examName is string && data.examName.size() > 0 && data.examName.size() < 100 &&
+             isValidScore(data.score) &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidFlashcard(data) {
+      return hasRequiredFields(['front', 'back', 'topic']) &&
+             hasOnlyAllowedFields(['front', 'back', 'topic', 'mastery', 'lastReviewed']) &&
+             data.front is string && data.front.size() > 0 && data.front.size() < 500 &&
+             data.back is string && data.back.size() > 0 && data.back.size() < 2000 &&
+             data.topic is string && data.topic.size() > 0 && data.topic.size() < 100 &&
+             (!('mastery' in data) || (data.mastery is number && data.mastery >= 0 && data.mastery <= 5)) &&
+             (!('lastReviewed' in data) || data.lastReviewed is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId}/progress/{examName} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidProgress(request.resource.data);
+      allow update: if isOwner(userId) && isValidProgress(request.resource.data) &&
+                      request.resource.data.uid == resource.data.uid &&
+                      request.resource.data.examName == resource.data.examName;
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/flashcards/{cardId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidFlashcard(request.resource.data);
+      allow update: if isOwner(userId) && isValidFlashcard(request.resource.data);
+      allow delete: if isOwner(userId);
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
